@@ -5,7 +5,11 @@ package com.tweatingmach;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.spark.Accumulator;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
@@ -35,7 +39,7 @@ public class Main {
         JavaStreamingContext jssc = new JavaStreamingContext(conf, Durations.seconds(1)); //set batch interval to 10s
 
         String topics = "kafka-chat";
-        String brokers = "localhost:9092";
+        String brokers = "172.31.54.245:9092";
         String groupId = "kafka-sandbox";
         Set<String> topicsSet = new HashSet<>(Arrays.asList(topics.split(",")));
         Map<String, Object> kafkaParams = new HashMap<>();
@@ -46,6 +50,15 @@ public class Main {
         kafkaParams.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         kafkaParams.put("auto.offset.reset", "earliest");
         kafkaParams.put("enable.auto.commit", false);
+
+        Map<String, Object> producerConfigurations = new HashMap<>();
+        producerConfigurations.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers);
+        producerConfigurations.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        producerConfigurations.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+
+        KafkaProducer<String,String> producer = new KafkaProducer(producerConfigurations);
+
+
 
         // Create direct kafka stream with brokers and topics
         JavaInputDStream<ConsumerRecord<String, String>> stream = KafkaUtils.createDirectStream(
@@ -97,8 +110,10 @@ public class Main {
                     for (int i = 0; i < 5; i++) {
                         if (map.containsKey(i))
                             acc.get(i).add(map.get(i));
+
                         System.out.println("Acc " + i + ": " + acc.get(i).value().toString());
                     }
+                    producer.send(new ProducerRecord<>("analysis", null, acc.toString())).get();
                 }
         );
 
